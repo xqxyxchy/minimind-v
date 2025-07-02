@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 
@@ -35,10 +36,19 @@ def convert_transformers2torch(transformers_path, torch_path):
 
 
 if __name__ == '__main__':
-    lm_config = VLMConfig(hidden_size=768, num_hidden_layers=16, max_seq_len=8192, use_moe=False)
+    parser = argparse.ArgumentParser(description="MiniMind-V transformers")
+    parser.add_argument("--model_dir", type=str, default="../out")
+    parser.add_argument('--hidden_size', default=512, type=int)
+    parser.add_argument('--num_hidden_layers', default=8, type=int)
+    parser.add_argument('--max_seq_len', default=8192, type=int)
+    parser.add_argument('--use_moe', default=False, type=bool)
+    parser.add_argument("--out_dir", type=str, default="../MiniMind2-V")
+    args = parser.parse_args()
+    
+    lm_config = VLMConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers, max_seq_len=args.max_seq_len, use_moe=args.use_moe)
 
-    torch_path = f"../out/sft_vlm_{lm_config.hidden_size}{'_moe' if lm_config.use_moe else ''}.pth"
+    torch_path = f"{args.model_dir}/sft_vlm_{lm_config.hidden_size}{'_moe' if lm_config.use_moe else ''}.pth"
 
-    transformers_path = '../MiniMind2-V'
+    transformers_path = args.out_dir
 
     convert_torch2transformers_minimind(torch_path, transformers_path)

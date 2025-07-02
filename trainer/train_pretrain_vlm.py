@@ -19,7 +19,9 @@ from torch.utils.data import DataLoader, DistributedSampler
 from transformers import AutoTokenizer, AutoModel
 from model.model_vlm import MiniMindVLM, VLMConfig
 from dataset.lm_dataset import VLMDataset
-
+import torch_npu
+from torch_npu.npu import amp # 导入AMP模块
+from torch_npu.contrib import transfer_to_npu # 使能自动迁移
 
 def Logger(content):
     if not ddp or dist.get_rank() == 0:
@@ -67,7 +69,7 @@ def train_epoch(epoch, wandb):
         if step % args.log_interval == 0:
             spend_time = time.time() - start_time
             Logger(
-                'Epoch:[{}/{}]({}/{}) loss:{:.3f} lr:{:.7f} epoch_Time:{}min:'.format(
+                'Pre-Train Epoch:[{}/{}]({}/{}) loss:{:.3f} lr:{:.7f} epoch_Time:{}min:'.format(
                     epoch + 1,
                     args.epochs,
                     step,

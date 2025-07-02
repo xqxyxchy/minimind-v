@@ -17,6 +17,9 @@ from torch.utils.data import DataLoader, DistributedSampler
 from transformers import AutoTokenizer, AutoModel
 from model.model_vlm import MiniMindVLM, VLMConfig
 from dataset.lm_dataset import VLMDataset
+import torch_npu
+from torch_npu.npu import amp # 导入AMP模块
+from torch_npu.contrib import transfer_to_npu # 使能自动迁移
 
 warnings.filterwarnings('ignore')
 
@@ -100,7 +103,7 @@ def train_epoch(epoch, wandb):
 def init_model(model_config: VLMConfig):
     tokenizer = AutoTokenizer.from_pretrained('../model')
     moe_path = '_moe' if model_config.use_moe else ''
-    ckp = f'{args.save_dir}/pretrain_vlm_{model_config.hidden_size}{moe_path}.pth'
+    ckp = f'{args.input_dir}/pretrain_vlm_{model_config.hidden_size}{moe_path}.pth'
 
     model = MiniMindVLM(model_config, vision_model_path="../model/vision_model/clip-vit-base-patch16")
     state_dict = torch.load(ckp, map_location=args.device)
@@ -132,6 +135,7 @@ def init_distributed_mode():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MiniMind-V Pretrain")
+    parser.add_argument("--input_dir", type=str)
     parser.add_argument("--out_dir", type=str, default="../out")
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--batch_size", type=int, default=4)
@@ -162,6 +166,12 @@ if __name__ == "__main__":
     args.save_dir = os.path.join(args.out_dir)
     os.makedirs(args.save_dir, exist_ok=True)
     os.makedirs(args.out_dir, exist_ok=True)
+
+    if args.input_dir is None:
+        args.input_dir = args.save_dir
+    elif not args.input_dir.strip():
+        args.input_dir = args.save_dir
+
     tokens_per_iter = args.batch_size * max_seq_len
     torch.manual_seed(1337)
     device_type = "cuda" if "cuda" in args.device else "cpu"
