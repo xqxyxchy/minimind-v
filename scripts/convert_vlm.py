@@ -43,11 +43,14 @@ if __name__ == '__main__':
     parser.add_argument('--max_seq_len', default=8192, type=int)
     parser.add_argument('--use_moe', default=False, type=bool)
     parser.add_argument("--out_dir", type=str, default="../MiniMind2-V")
+    parser.add_argument('--model_mode', default=1, type=int,
+                        help="0: Pretrain模型，1: SFT模型，2: SFT-多图模型 (beta拓展)")
     args = parser.parse_args()
     
     lm_config = VLMConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers, max_seq_len=args.max_seq_len, use_moe=args.use_moe)
 
-    torch_path = f"{args.model_dir}/sft_vlm_{lm_config.hidden_size}{'_moe' if lm_config.use_moe else ''}.pth"
+    modes = {0: 'pretrain_vlm', 1: 'sft_vlm', 2: 'sft_vlm_multi'}
+    torch_path = f"{args.model_dir}/{modes[args.model_mode]}_{lm_config.hidden_size}{'_moe' if lm_config.use_moe else ''}.pth"
 
     transformers_path = args.out_dir
 
