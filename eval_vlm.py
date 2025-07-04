@@ -62,7 +62,7 @@ if __name__ == "__main__":
     # 默认单图推理，设置为2为多图推理
     parser.add_argument('--use_multi', default=1, type=int)
     parser.add_argument('--stream', default=True, type=bool)
-    parser.add_argument('--load', default=1, type=int, help="0: 原生torch权重，1: transformers加载")
+    parser.add_argument('--load', default=0, type=int, help="0: 原生torch权重，1: transformers加载")
     parser.add_argument('--model_mode', default=1, type=int,
                         help="0: Pretrain模型，1: SFT模型，2: SFT-多图模型 (beta拓展)")
     args = parser.parse_args()
