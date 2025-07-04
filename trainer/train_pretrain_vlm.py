@@ -108,10 +108,11 @@ def init_model(model_config: VLMConfig):
     state_dict = torch.load(ckp, map_location=args.device)
     model.load_state_dict(state_dict, strict=False)
 
-    # 冻结除 vision_proj 外的所有参数
-    for name, param in model.named_parameters():
-        if 'vision_proj' not in name:
-            param.requires_grad = False
+    if args.only_vision_proj:
+        # 冻结除 vision_proj 外的所有参数
+        for name, param in model.named_parameters():
+            if 'vision_proj' not in name:
+                param.requires_grad = False
 
     Logger(f'VLM可训练参数量：{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6:.3f} 百万')
 
@@ -156,6 +157,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_hidden_layers', default=8, type=int)
     parser.add_argument('--max_seq_len', default=640, type=int)
     parser.add_argument('--use_moe', default=False, type=bool)
+    parser.add_argument('--only_vision_proj', default=True, type=bool)
     args = parser.parse_args()
 
     model_config = VLMConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers,
