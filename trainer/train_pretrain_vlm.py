@@ -180,7 +180,7 @@ if __name__ == "__main__":
     torch.manual_seed(1337)
     device_type = "cuda" if "cuda" in args.device else "cpu"
 
-    ts=datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
+    ts=datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d_%H:%M:%S")
     args.wandb_run_name = f"{ts}-Epoch-{args.epochs}-BatchSize-{args.batch_size}-LearningRate-{args.learning_rate}"
 
     ctx = nullcontext() if device_type == "cpu" else torch.cuda.amp.autocast()
