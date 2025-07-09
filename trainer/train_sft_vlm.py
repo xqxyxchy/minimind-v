@@ -142,6 +142,11 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--learning_rate", type=float, default=1e-6)
+    parser.add_argument("--beta1", type=float, default=0.95)
+    parser.add_argument("--beta2", type=float, default=0.99)
+    parser.add_argument("--eps", type=float, default=1e-8)
+    parser.add_argument("--weight_decay", type=float, default=0.01)
+    parser.add_argument('--amsgrad', default=False, type=bool)
     parser.add_argument("--device", type=str, default="cuda:0" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--dtype", type=str, default="bfloat16")
     parser.add_argument("--use_wandb", default=False, action="store_true")
@@ -227,6 +232,14 @@ if __name__ == "__main__":
 
     scaler = torch.cuda.amp.GradScaler(enabled=(args.dtype in ['float16', 'bfloat16']))
     optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate)
+    optimizer = optim.AdamW(
+        model.parameters(),                 # 待优化参数 (必选)
+        lr=args.learning_rate,              # 学习率 η (默认1e-3)
+        betas=(args.beta1, args.beta12),    # 动量系数 (β₁, β₂)
+        eps=args.eps,                       # 数值稳定项 ε (默认1e-8)
+        weight_decay=args.weight_decay,     # 解耦权重衰减系数 λ (关键改进)
+        amsgrad=args.amsgrad                # 是否启用AMSGrad变体
+    )
 
     if ddp:
         model._ddp_params_and_buffers_to_ignore = {"pos_cis"}
