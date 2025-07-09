@@ -235,7 +235,7 @@ if __name__ == "__main__":
     optimizer = optim.AdamW(
         model.parameters(),                 # 待优化参数 (必选)
         lr=args.learning_rate,              # 学习率 η (默认1e-3)
-        betas=(args.beta1, args.beta12),    # 动量系数 (β₁, β₂)
+        betas=(args.beta1, args.beta2),    # 动量系数 (β₁, β₂)
         eps=args.eps,                       # 数值稳定项 ε (默认1e-8)
         weight_decay=args.weight_decay,     # 解耦权重衰减系数 λ (关键改进)
         amsgrad=args.amsgrad                # 是否启用AMSGrad变体
