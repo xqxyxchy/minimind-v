@@ -143,6 +143,8 @@ if __name__ == "__main__":
     parser.add_argument("--dtype", type=str, default="bfloat16")
     parser.add_argument("--use_wandb", default=False, action="store_true")
     parser.add_argument("--wandb_project", type=str, default="MiniMind-V")
+    # parser.add_argument("--wandb_host", type=str, default=None, help="WandB host，用于无交互环境自动登录")
+    # parser.add_argument("--wandb_api_key", type=str, default=None, help="WandB API Key，用于无交互环境自动登录")
     parser.add_argument("--num_workers", type=int, default=8)
     parser.add_argument("--data_path", type=str, default="../dataset/pretrain_data.jsonl")
     parser.add_argument("--images_path", type=str, default="../dataset/pretrain_images")
@@ -187,7 +189,19 @@ if __name__ == "__main__":
 
     if args.use_wandb and (not ddp or ddp_local_rank == 0):
         import wandb
-
+        # # 安全考虑，外部使用wandb login命令交互式登陆
+        # # 优先使用命令行参数，其次环境变量
+        # whost = args.wandb_host or os.environ.get("WANDB_HOST", None)
+        # api_key = args.wandb_api_key or os.environ.get("WANDB_API_KEY", None)
+        # if whost is not None and api_key is not None:
+        #     # 自动登录，适用于无交互环境
+        #     wandb.login(host=whost,key=api_key)
+        # elif whost is not None:
+        #     # 自动登录，适用于无交互环境
+        #     wandb.login(host=whost)
+        # elif api_key is not None:
+        #     # 自动登录，适用于无交互环境
+        #     wandb.login(key=api_key)
         wandb.init(project=args.wandb_project, name=args.wandb_run_name)
     else:
         wandb = None
