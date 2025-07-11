@@ -126,9 +126,16 @@ def init_distributed_mode():
     if not ddp: return
     global ddp_local_rank, DEVICE
 
+    rank = int(os.environ["RANK"])
+    world_size = int(os.environ["WORLD_SIZE"])
     ddp_local_rank = int(os.environ["LOCAL_RANK"])
     DEVICE = f"cuda:{ddp_local_rank}"
-    dist.init_process_group(backend="nccl", init_method="env://")
+    dist.init_process_group(
+        backend="nccl",
+        init_method="env://",
+        rank=rank,
+        world_size=world_size
+    )
     torch.cuda.set_device(DEVICE)
 
 
