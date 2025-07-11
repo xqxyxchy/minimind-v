@@ -129,7 +129,7 @@ def init_distributed_mode():
 
     ddp_local_rank = int(os.environ["LOCAL_RANK"])
     DEVICE = f"cuda:{ddp_local_rank}"
-    dist.init_process_group(backend="hccl", init_method="env://")
+    dist.init_process_group(backend="nccl", init_method="env://")
     torch.cuda.set_device(DEVICE)
 
 
