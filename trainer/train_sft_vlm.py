@@ -127,11 +127,9 @@ def init_distributed_mode():
     if not ddp: return
     global ddp_local_rank, DEVICE
 
-    dist.init_process_group(backend="nccl")
-    ddp_rank = int(os.environ["RANK"])
     ddp_local_rank = int(os.environ["LOCAL_RANK"])
-    ddp_world_size = int(os.environ["WORLD_SIZE"])
     DEVICE = f"cuda:{ddp_local_rank}"
+    dist.init_process_group(backend="hccl", init_method="env://")
     torch.cuda.set_device(DEVICE)
 
 
@@ -156,7 +154,6 @@ if __name__ == "__main__":
     parser.add_argument("--num_workers", type=int, default=8)
     parser.add_argument("--data_path", type=str, default="../dataset/sft_data.jsonl")
     parser.add_argument("--images_path", type=str, default="../dataset/sft_images")
-    parser.add_argument("--ddp", action="store_true")
     parser.add_argument("--accumulation_steps", type=int, default=1)
     parser.add_argument("--grad_clip", type=float, default=1.0)
     parser.add_argument("--warmup_iters", type=int, default=0)
