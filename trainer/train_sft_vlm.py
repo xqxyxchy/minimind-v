@@ -186,13 +186,21 @@ if __name__ == "__main__":
     args.wandb_run_name = f"{ts}-Epoch-{args.epochs}-BatchSize-{args.batch_size}-LearningRate-{args.learning_rate}"
 
     ctx = nullcontext() if device_type == "cpu" else torch.cuda.amp.autocast()
-    ddp = int(os.environ.get("RANK", -1)) != -1  # is this a ddp run?
+    rank = int(os.environ.get("RANK", -1))
+    ddp = rank != -1  # is this a ddp run?
     ddp_local_rank, DEVICE = 0, "cuda:0"
+    base_seed = 1337
+    torch.manual_seed(base_seed)
+    torch.cuda.manual_seed(base_seed)
+
     if ddp:
         init_distributed_mode()
         args.device = torch.device(DEVICE)
+        torch.manual_seed(base_seed + rank)
+        # 同时设置 CUDA 的随机种子
+        torch.cuda.manual_seed(base_seed + rank)
 
-    if args.use_wandb and (not ddp or ddp_local_rank == 0):
+    if args.use_wandb and (not ddp or rank == 0):
         import wandb
         # # 安全考虑，外部使用wandb login命令交互式登陆
         # # 优先使用命令行参数，其次环境变量
