@@ -135,6 +135,7 @@ def train_epoch(epoch, wandb):
 
 # 初始化模型和分词器
 def init_model(model_config: VLMConfig):
+    # 加载预训练的分词器
     tokenizer = AutoTokenizer.from_pretrained('../model', use_fast=True)
     moe_path = '_moe' if model_config.use_moe else ''
     # 加载纯语言模型权重
@@ -159,10 +160,15 @@ def init_distributed_mode():
     if not ddp: return
     global ddp_local_rank, DEVICE
 
+    # 全局进程编号
     rank = int(os.environ["RANK"])
-    world_size = int(os.environ["WORLD_SIZE"])
+    # 本地进程编号
     ddp_local_rank = int(os.environ["LOCAL_RANK"])
+    # 总进程数
+    world_size = int(os.environ["WORLD_SIZE"])
+    # 设置当前进程使用的设备
     DEVICE = f"cuda:{ddp_local_rank}"
+    # 初始化分布式进程组，使用NCCL或HCCL后端
     dist.init_process_group(
         backend="nccl",
         init_method="env://",
@@ -174,37 +180,45 @@ def init_distributed_mode():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MiniMind-V Pretrain")
-    parser.add_argument("--input_dir", type=str)
-    parser.add_argument("--out_dir", type=str, default="../out")
-    parser.add_argument("--epochs", type=int, default=4)
-    parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--learning_rate", type=float, default=4e-4)
-    parser.add_argument("--beta1", type=float, default=0.95)
-    parser.add_argument("--beta2", type=float, default=0.999)
-    parser.add_argument("--eps", type=float, default=1e-8)
-    parser.add_argument("--weight_decay", type=float, default=0.01)
-    parser.add_argument('--amsgrad', default=False, type=bool)
-    parser.add_argument("--device", type=str, default="cuda:0" if torch.cuda.is_available() else "cpu")
-    parser.add_argument("--dtype", type=str, default="bfloat16")
-    parser.add_argument("--grad_dynamic", action="store_true")
-    parser.add_argument("--use_wandb", default=False, action="store_true")
-    parser.add_argument("--wandb_project", type=str, default="MiniMind-V")
+    
+    # 基础训练参数
+    parser.add_argument("--input_dir", type=str, help="输入目录")
+    parser.add_argument("--out_dir", type=str, default="../out", help="输出目录")
+    parser.add_argument("--epochs", type=int, default=4, help="训练轮数")
+    parser.add_argument("--batch_size", type=int, default=16, help="批次大小")
+    parser.add_argument("--learning_rate", type=float, default=4e-4, help="学习率")
+    parser.add_argument("--beta1", type=float, default=0.95, help="动量系数β₁")
+    parser.add_argument("--beta2", type=float, default=0.999, help="动量系数β₂")
+    parser.add_argument("--eps", type=float, default=1e-8, help="数值稳定项ε")
+    parser.add_argument("--weight_decay", type=float, default=0.01, help="解耦权重衰减系数λ")
+    parser.add_argument('--amsgrad', default=False, type=bool, help="是否启用AMSGrad变体")
+    parser.add_argument("--device", type=str, default="cuda:0" if torch.cuda.is_available() else "cpu", help="训练设备")
+    parser.add_argument("--dtype", type=str, default="bfloat16", help="训练精度")
+
+    # 日志和监控参数
+    parser.add_argument("--use_wandb", default=False, action="store_true", help="是否使用wandb记录训练过程")
+    parser.add_argument("--wandb_project", type=str, default="MiniMind-V", help="wandb项目名称")
     # parser.add_argument("--wandb_host", type=str, default=None, help="WandB host，用于无交互环境自动登录")
     # parser.add_argument("--wandb_api_key", type=str, default=None, help="WandB API Key，用于无交互环境自动登录")
-    parser.add_argument("--num_workers", type=int, default=8)
-    parser.add_argument("--data_path", type=str, default="../dataset/pretrain_data.jsonl")
-    parser.add_argument("--images_path", type=str, default="../dataset/pretrain_images")
-    parser.add_argument("--accumulation_steps", type=int, default=1)
-    parser.add_argument("--grad_clip", type=float, default=1.0)
-    parser.add_argument("--warmup_iters", type=int, default=0)
-    parser.add_argument("--log_interval", type=int, default=100)
-    parser.add_argument("--save_interval", type=int, default=100)
-    parser.add_argument('--local_rank', type=int, default=-1)
-    parser.add_argument('--hidden_size', default=512, type=int)
-    parser.add_argument('--num_hidden_layers', default=8, type=int)
-    parser.add_argument('--max_seq_len', default=640, type=int)
-    parser.add_argument('--use_moe', default=False, type=bool)
-    parser.add_argument('--only_vision_proj', default=True, type=bool)
+    parser.add_argument("--log_interval", type=int, default=100, help="日志打印间隔")
+    parser.add_argument("--save_interval", type=int, default=100, help="模型保存间隔")
+
+    # 分布式训练参数
+    parser.add_argument("--num_workers", type=int, default=8, help="数据加载进程数")
+
+    # 优化器参数
+    parser.add_argument("--accumulation_steps", type=int, default=1, help="梯度累积步数")
+    parser.add_argument("--grad_dynamic", action="store_true", help="是否使用动态伸缩梯度裁剪值阈值")
+    parser.add_argument("--grad_clip", type=float, default=1.0, help="梯度裁剪阈值")
+
+    # 模型参数
+    parser.add_argument('--hidden_size', default=512, type=int, help="隐藏层维度")
+    parser.add_argument('--num_hidden_layers', default=8, type=int, help="Transformer层数")
+    parser.add_argument('--max_seq_len', default=640, type=int, help="最大序列长度")
+    parser.add_argument('--use_moe', default=False, type=bool, help="是否使用MoE")
+    parser.add_argument('--only_vision_proj', default=True, type=bool, help="是否只训练视觉层")
+    parser.add_argument("--data_path", type=str, default="../dataset/pretrain_data.jsonl", help="训练数据路径")
+    parser.add_argument("--images_path", type=str, default="../dataset/pretrain_images", help="训练数据路径")
     args = parser.parse_args()
 
     model_config = VLMConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers,
@@ -226,6 +240,7 @@ if __name__ == "__main__":
     ts=datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d_%H:%M:%S")
     args.wandb_run_name = f"{ts}-Epoch-{args.epochs}-BatchSize-{args.batch_size}-LearningRate-{args.learning_rate}"
 
+    # 设置自动混合精度训练上下文
     ctx = nullcontext() if device_type == "cpu" else torch.cuda.amp.autocast()
     rank = int(os.environ.get("RANK", -1))
     ddp = rank != -1  # is this a ddp run?
