@@ -62,7 +62,27 @@ def train_epoch(epoch, wandb):
 
         if (step + 1) % args.accumulation_steps == 0:
             scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+            if args.grad_dynamic:
+                # 监控梯度范数
+                current_norm = torch.nn.utils.clip_grad_norm_(
+                    model.parameters(), 
+                    max_norm=10,  # 临时设大值以测量真实范数
+                    error_if_nonfinite=True
+                )
+                
+                # 动态调整逻辑：若梯度持续过大则收紧
+                if current_norm > 5 * args.grad_clip: 
+                    new_max_norm = args.grad_clip * 0.8  # 缩小20%
+                elif current_norm < 0.2 * args.grad_clip:
+                    new_max_norm = args.grad_clip * 1.2  # 扩大20%
+                
+                # 应用裁剪（实际训练时）
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(), 
+                    max_norm=new_max_norm
+                )
+            else:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=args.grad_clip)
 
             scaler.step(optimizer)
             scaler.update()
@@ -154,6 +174,7 @@ if __name__ == "__main__":
     parser.add_argument('--amsgrad', default=False, type=bool)
     parser.add_argument("--device", type=str, default="cuda:0" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--dtype", type=str, default="bfloat16")
+    parser.add_argument("--grad_dynamic", action="store_true")
     parser.add_argument("--use_wandb", default=False, action="store_true")
     parser.add_argument("--wandb_project", type=str, default="MiniMind-V")
     # parser.add_argument("--wandb_host", type=str, default=None, help="WandB host，用于无交互环境自动登录")
