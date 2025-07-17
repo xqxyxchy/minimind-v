@@ -103,8 +103,8 @@ def train_epoch(epoch, wandb):
                     iter_per_epoch,
                     loss.item(),
                     optimizer.param_groups[-1]['lr'],
-                    spend_time / (step + 1) * iter_per_epoch // 60 - spend_time // 60),
-                    max_norm
+                    spend_time / (step + 1) * iter_per_epoch // 60 - spend_time // 60,
+                    max_norm)
                 )
 
             if (wandb is not None) and (not ddp or dist.get_rank() == 0):
