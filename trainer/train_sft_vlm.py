@@ -59,6 +59,7 @@ def train_epoch(epoch, wandb):
             loss = loss / args.accumulation_steps
 
         scaler.scale(loss).backward()
+        global max_norm
         max_norm = args.grad_clip
 
         if (step + 1) % args.accumulation_steps == 0:
