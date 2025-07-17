@@ -62,6 +62,7 @@ def train_epoch(epoch, wandb):
 
         if (step + 1) % args.accumulation_steps == 0:
             scaler.unscale_(optimizer)
+            max_norm = args.grad_clip
             if args.grad_dynamic:
                 # 监控梯度范数
                 current_norm = torch.nn.utils.clip_grad_norm_(
@@ -75,14 +76,17 @@ def train_epoch(epoch, wandb):
                     new_max_norm = args.grad_clip * 0.8  # 缩小20%
                 elif current_norm < 0.2 * args.grad_clip:
                     new_max_norm = args.grad_clip * 1.2  # 扩大20%
-                
+                else:
+                    new_max_norm = current_norm
+
+                max_norm = new_max_norm
                 # 应用裁剪（实际训练时）
                 torch.nn.utils.clip_grad_norm_(
                     model.parameters(), 
                     max_norm=new_max_norm
                 )
             else:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=args.grad_clip)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
 
             scaler.step(optimizer)
             scaler.update()
@@ -92,14 +96,16 @@ def train_epoch(epoch, wandb):
         if step % args.log_interval == 0:
             spend_time = time.time() - start_time
             Logger(
-                'Epoch:[{}/{}]({}/{}) loss:{:.3f} lr:{:.7f} epoch_Time:{}min:'.format(
+                'Epoch:[{}/{}]({}/{}) loss:{:.3f} lr:{:.7f} epoch_Time:{}min grad_norm:{}'.format(
                     epoch + 1,
                     args.epochs,
                     step,
                     iter_per_epoch,
                     loss.item(),
                     optimizer.param_groups[-1]['lr'],
-                    spend_time / (step + 1) * iter_per_epoch // 60 - spend_time // 60))
+                    spend_time / (step + 1) * iter_per_epoch // 60 - spend_time // 60),
+                    max_norm
+                )
 
             if (wandb is not None) and (not ddp or dist.get_rank() == 0):
                 wandb.log({"loss": loss,
