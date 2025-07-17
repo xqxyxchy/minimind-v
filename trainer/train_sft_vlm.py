@@ -111,7 +111,9 @@ def train_epoch(epoch, wandb):
             if (wandb is not None) and (not ddp or dist.get_rank() == 0):
                 wandb.log({"loss": loss,
                            "lr": optimizer.param_groups[-1]['lr'],
-                           "epoch_Time": spend_time / (step + 1) * iter_per_epoch // 60 - spend_time // 60})
+                           "epoch_Time": spend_time / (step + 1) * iter_per_epoch // 60 - spend_time // 60,
+                           "grad_norm": max_norm
+                           })
 
         if (step + 1) % args.save_interval == 0 and (not ddp or dist.get_rank() == 0):
             model.eval()
