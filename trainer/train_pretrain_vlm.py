@@ -58,10 +58,10 @@ def train_epoch(epoch, wandb):
             loss = loss / args.accumulation_steps
 
         scaler.scale(loss).backward()
+        max_norm = args.grad_clip
 
         if (step + 1) % args.accumulation_steps == 0:
             scaler.unscale_(optimizer)
-            max_norm = args.grad_clip
             if args.grad_dynamic:
                 # 监控梯度范数
                 current_norm = torch.nn.utils.clip_grad_norm_(
@@ -95,7 +95,7 @@ def train_epoch(epoch, wandb):
         if step % args.log_interval == 0:
             spend_time = time.time() - start_time
             Logger(
-                'Pre-Train Epoch:[{}/{}]({}/{}) loss:{:.3f} lr:{:.7f} epoch_Time:{}min grad_norm:{}'.format(
+                'Pre-Train Epoch:[{}/{}]({}/{}) loss:{:.3f} lr:{:.7f} epoch_Time:{}min grad_norm:{:.3f}'.format(
                     epoch + 1,
                     args.epochs,
                     step,
