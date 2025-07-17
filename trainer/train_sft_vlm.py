@@ -25,19 +25,23 @@ from torch_npu.contrib import transfer_to_npu # 使能自动迁移
 
 warnings.filterwarnings('ignore')
 
-
+# 日志打印函数
+# 在分布式训练时只在主进程(rank=0)上打印日志
 def Logger(content):
     if not ddp or dist.get_rank() == 0:
         print(content)
 
-
+# 余弦学习率调度器
+# 在训练过程中逐渐降低学习率，最终降到初始值的1/10
 def get_lr(current_step, total_steps, lr):
     return lr / 10 + 0.5 * lr * (1 + math.cos(math.pi * current_step / total_steps))
 
 
 def train_epoch(epoch, wandb):
+    # 使用交叉熵损失函数，reduction='none'以便后续通过mask处理填充token
     loss_fct = nn.CrossEntropyLoss(reduction='none')
     start_time = time.time()
+    current_max_norm = args.grad_clip
     for step, (X, Y, loss_mask, pixel_values) in enumerate(train_loader):
         X = X.to(args.device)
         Y = Y.to(args.device)
@@ -59,8 +63,6 @@ def train_epoch(epoch, wandb):
             loss = loss / args.accumulation_steps
 
         scaler.scale(loss).backward()
-        global max_norm
-        max_norm = args.grad_clip
 
         if (step + 1) % args.accumulation_steps == 0:
             scaler.unscale_(optimizer)
@@ -80,7 +82,7 @@ def train_epoch(epoch, wandb):
                 else:
                     new_max_norm = current_norm
 
-                max_norm = new_max_norm
+                current_max_norm = new_max_norm
                 # 应用裁剪（实际训练时）
                 torch.nn.utils.clip_grad_norm_(
                     model.parameters(), 
@@ -106,14 +108,14 @@ def train_epoch(epoch, wandb):
                     loss.item(),
                     optimizer.param_groups[-1]['lr'],
                     spend_time / (step + 1) * iter_per_epoch // 60 - spend_time // 60,
-                    max_norm)
+                    current_max_norm)
                 )
 
             if (wandb is not None) and (not ddp or dist.get_rank() == 0):
                 wandb.log({"loss": loss,
                            "lr": optimizer.param_groups[-1]['lr'],
                            "epoch_Time": spend_time / (step + 1) * iter_per_epoch // 60 - spend_time // 60,
-                           "grad_norm": max_norm
+                           "grad_norm": current_max_norm
                            })
 
         if (step + 1) % args.save_interval == 0 and (not ddp or dist.get_rank() == 0):
@@ -131,7 +133,7 @@ def train_epoch(epoch, wandb):
             torch.save(clean_state_dict, ckp)
             model.train()
 
-
+# 初始化模型和分词器
 def init_model(model_config: VLMConfig):
     tokenizer = AutoTokenizer.from_pretrained('../model')
     moe_path = '_moe' if model_config.use_moe else ''
@@ -142,17 +144,18 @@ def init_model(model_config: VLMConfig):
     model.load_state_dict(state_dict, strict=False)
 
     # 默认全参训练
-    # # 只解冻注意力机制中的投影层参数
-    # for name, param in model.model.named_parameters():
-    #     if any(proj in name for proj in ['q_proj', 'k_proj', 'v_proj', 'o_proj']):
-    #         param.requires_grad = True
+    if args.only_vision_proj:
+        # 只解冻注意力机制中的投影层参数
+        for name, param in model.model.named_parameters():
+            if any(proj in name for proj in ['q_proj', 'k_proj', 'v_proj', 'o_proj']):
+                param.requires_grad = True
 
     Logger(f'VLM可训练参数量：{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6:.3f} 百万')
 
     _, preprocess = model.vision_encoder, model.processor
     return model.to(args.device), tokenizer, preprocess
 
-
+# 初始化分布式训练环境
 def init_distributed_mode():
     if not ddp: return
     global ddp_local_rank, DEVICE
@@ -202,6 +205,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_hidden_layers', default=8, type=int)
     parser.add_argument('--max_seq_len', default=1536, type=int)
     parser.add_argument('--use_moe', default=False, type=bool)
+    parser.add_argument('--only_vision_proj', default=True, type=bool)
     args = parser.parse_args()
 
     model_config = VLMConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers,
