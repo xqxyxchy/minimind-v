@@ -22,15 +22,26 @@ from dataset.lm_dataset import VLMDataset
 import torch_npu
 from torch_npu.npu import amp # 导入AMP模块
 from torch_npu.contrib import transfer_to_npu # 使能自动迁移
+import logging
 from utils.logger_util import get_logger
 warnings.filterwarnings('ignore')
 
 # 日志打印函数
 # 在分布式训练时只在主进程(rank=0)上打印日志
-def Logger(content):
+def Logger(content, level: int=logging.DEBUG):
     if not ddp or dist.get_rank() == 0:
-        log = get_logger(__name__, log_dir="../logs")
-        log.info(content)
+        if logging.DEBUG == level:
+            log.debug(content)
+        elif logging.INFO == level:
+            log.info(content)
+        elif logging.WARNING == level:
+            log.warning(content)
+        elif logging.ERROR == level:
+            log.error(content)
+        elif logging.CRITICAL == level:
+            log.critical(content)
+        else:
+            log.debug(content)
 
 # 余弦学习率调度器
 # 在训练过程中逐渐降低学习率，最终降到初始值的1/10
@@ -152,7 +163,7 @@ def init_model(model_config: VLMConfig):
             if any(proj in name for proj in ['q_proj', 'k_proj', 'v_proj', 'o_proj']):
                 param.requires_grad = True
 
-    Logger(f'VLM可训练参数量：{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6:.3f} 百万')
+    Logger(f'VLM可训练参数量：{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6:.3f} 百万', level=logging.INFO)
 
     _, preprocess = model.vision_encoder, model.processor
     return model.to(args.device), tokenizer, preprocess
@@ -203,6 +214,8 @@ if __name__ == "__main__":
     # parser.add_argument("--wandb_api_key", type=str, default=None, help="WandB API Key，用于无交互环境自动登录")
     parser.add_argument("--log_interval", type=int, default=10, help="日志打印间隔")
     parser.add_argument("--save_interval", type=int, default=10, help="模型保存间隔")
+    parser.add_argument("--log_dir", type=str, default="../logs", help="日志文件目录")
+    parser.add_argument("--log_level", type=int, default=logging.DEBUG, help="日志文件目录")
 
     # 分布式训练参数
     parser.add_argument("--num_workers", type=int, default=8, help="数据加载进程数")
@@ -221,6 +234,44 @@ if __name__ == "__main__":
     parser.add_argument("--data_path", type=str, default="../dataset/sft_data.jsonl", help="训练数据路径")
     parser.add_argument("--images_path", type=str, default="../dataset/sft_images", help="训练数据路径")
     args = parser.parse_args()
+
+    global log
+    log = get_logger(__name__, level=args.log_level, log_dir=args.log_dir)
+
+    Logger(
+        '模型超参 - 训练轮数:{} 批次大小:{} 学习率:{} 动量系数(β₁, β₂):({},{}) 数值稳定项ε:{} 解耦权重衰减系数λ:{} 是否启用AMSGrad变体:{} 训练精度:{}'.format(
+            args.epochs,
+            args.batch_size,
+            args.learning_rate,
+            args.beta1,
+            args.beta2,
+            args.eps,
+            args.weight_decay,
+            args.amsgrad,
+            args.dtype
+        ),
+        level=logging.INFO
+    )
+
+    Logger(
+        '模型参数 - 隐藏层维度:{} Transformer层数:{} 最大序列长度:{} 是否使用MoE:{} 是否只训练视觉层:{}'.format(
+            args.hidden_size,
+            args.num_hidden_layers,
+            args.max_seq_len,
+            args.use_moe,
+            args.only_vision_proj
+        ),
+        level=logging.INFO
+    )
+
+    Logger(
+        '优化器参数 - 梯度累积步数:{} 是否使用动态伸缩梯度裁剪值阈值:{} 梯度裁剪阈值:{}'.format(
+            args.accumulation_steps,
+            args.grad_dynamic,
+            args.grad_clip
+        ),
+        level=logging.INFO
+    )
 
     model_config = VLMConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers,
                              max_seq_len=args.max_seq_len)
