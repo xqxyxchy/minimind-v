@@ -8,9 +8,7 @@ import torch
 import warnings
 from transformers import AutoTokenizer, AutoModelForCausalLM, LlamaConfig, LlamaForCausalLM
 from model.model_vlm import MiniMindVLM, VLMConfig
-
 warnings.filterwarnings('ignore', category=UserWarning)
-
 
 def convert_torch2transformers_minimind(torch_path, transformers_path, dtype=torch.bfloat16):
     VLMConfig.register_for_auto_class()
@@ -28,12 +26,10 @@ def convert_torch2transformers_minimind(torch_path, transformers_path, dtype=tor
     tokenizer.save_pretrained(transformers_path)
     print(f"模型已保存为 Transformers-MiniMind-V 格式: {transformers_path}")
 
-
 def convert_transformers2torch(transformers_path, torch_path):
     model = AutoModelForCausalLM.from_pretrained(transformers_path, trust_remote_code=True)
     torch.save(model.state_dict(), torch_path)
     print(f"模型已保存为 PyTorch 格式: {torch_path}")
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="MiniMind-V transformers")

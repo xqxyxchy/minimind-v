@@ -13,10 +13,8 @@ from PIL import Image
 from transformers import AutoTokenizer, AutoModelForCausalLM, TextStreamer
 from model.model_vlm import MiniMindVLM, VLMConfig
 from transformers import logging as hf_logging
-
 hf_logging.set_verbosity_error()
 warnings.filterwarnings('ignore')
-
 
 def init_model(lm_config):
     tokenizer = AutoTokenizer.from_pretrained('../model')
@@ -38,7 +36,6 @@ def init_model(lm_config):
     vision_model, preprocess = model.vision_encoder, model.processor
     return model.eval().to(args.device), tokenizer, vision_model.to(args.device), preprocess
 
-
 class CustomStreamer(TextStreamer):
     def __init__(self, tokenizer, queue):
         super().__init__(tokenizer, skip_prompt=True, skip_special_tokens=True)
@@ -49,7 +46,6 @@ class CustomStreamer(TextStreamer):
         self.queue.put(text)
         if stream_end:
             self.queue.put(None)
-
 
 def chat(prompt, current_image_path):
     global temperature, top_p
@@ -95,7 +91,6 @@ def chat(prompt, current_image_path):
             if text is None:
                 break
             yield text
-
 
 def launch_gradio_server(server_name="0.0.0.0", server_port=7788):
     global temperature, top_p
@@ -178,7 +173,6 @@ def launch_gradio_server(server_name="0.0.0.0", server_port=7788):
                 #     inputs=message_input)
 
         demo.launch(server_name=server_name, server_port=server_port)
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Chat with MiniMind")

@@ -46,8 +46,15 @@ def Logger(content, level: int=logging.DEBUG):
 # 余弦学习率调度器
 # 在训练过程中逐渐降低学习率，最终降到初始值的1/10
 def get_lr(current_step, total_steps, lr):
+    """使用余弦退火策略计算学习率
+    Args:
+        current_step: 当前训练步数
+        total_steps: 总训练步数
+        lr: 基础学习率
+    Returns:
+        当前步数对应的学习率
+    """
     return lr / 10 + 0.5 * lr * (1 + math.cos(math.pi * current_step / total_steps))
-
 
 def train_epoch(epoch, wandb):
     # 使用交叉熵损失函数，reduction='none'以便后续通过mask处理填充token
@@ -190,6 +197,7 @@ def init_distributed_mode():
     )
     torch.cuda.set_device(DEVICE)
 
+# 初始化日志
 def init_log():
     global log
     log = get_logger(__name__, level=args.log_level, log_dir=args.log_dir)
@@ -273,45 +281,55 @@ if __name__ == "__main__":
     parser.add_argument("--images_path", type=str, default="../dataset/sft_images", help="训练数据路径")
     args = parser.parse_args()
 
+    # 初始化模型配置
     model_config = VLMConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers,
                              max_seq_len=args.max_seq_len)
     max_seq_len = model_config.max_seq_len
+
+    # 创建模型输出目录
     args.save_dir = os.path.join(args.out_dir)
     os.makedirs(args.save_dir, exist_ok=True)
     os.makedirs(args.out_dir, exist_ok=True)
 
+    # 创建模型输入目录
     if args.input_dir is None:
         args.input_dir = args.save_dir
     elif not args.input_dir.strip():
         args.input_dir = args.save_dir
 
-    tokens_per_iter = args.batch_size * max_seq_len
-    torch.manual_seed(1337)
-    device_type = "cuda" if "cuda" in args.device else "cpu"
-
-    ts=datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d_%H:%M:%S")
-    args.wandb_run_name = f"{ts}-Epoch-{args.epochs}-BatchSize-{args.batch_size}-LearningRate-{args.learning_rate}"
+    # 计算每次迭代处理的token数量
+    tokens_per_iter = args.batch_size * args.max_seq_len
 
     # 设置自动混合精度训练上下文
+    device_type = "cuda" if "cuda" in args.device else "cpu"
     ctx = nullcontext() if device_type == "cpu" else torch.cuda.amp.autocast()
+    
+    # 检查是否为分布式训练
     rank = int(os.environ.get("RANK", -1))
     ddp = rank != -1  # is this a ddp run?
     ddp_local_rank, DEVICE = 0, "cuda:0"
     
+    # 设置随机种子
     base_seed = 1337
     torch.manual_seed(base_seed)
     torch.cuda.manual_seed(base_seed)
 
+    # 初始化分布式训练环境
     if ddp:
         init_distributed_mode()
         args.device = torch.device(DEVICE)
-        torch.manual_seed(base_seed + rank)
         # 同时设置 CUDA 的随机种子
+        torch.manual_seed(base_seed + rank)
         torch.cuda.manual_seed(base_seed + rank)
 
+    # 初始化日志
     init_log()
 
+    # 初始化wandb（如果启用）
     if args.use_wandb and (not ddp or rank == 0):
+        # 设置wandb运行名称
+        ts=datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d_%H:%M:%S")
+        args.wandb_run_name = f"{ts}-Epoch-{args.epochs}-BatchSize-{args.batch_size}-LearningRate-{args.learning_rate}"
         import wandb
         # # 安全考虑，外部使用wandb login命令交互式登陆
         # # 优先使用命令行参数，其次环境变量
@@ -330,8 +348,10 @@ if __name__ == "__main__":
     else:
         wandb = None
 
+    # 初始化模型和分词器
     model, tokenizer, preprocess = init_model(model_config)
 
+    # 准备训练数据
     train_ds = VLMDataset(args.data_path, args.images_path, tokenizer, preprocess=preprocess,
                           image_special_token=model_config.image_special_token,
                           max_length=max_seq_len)
@@ -346,8 +366,8 @@ if __name__ == "__main__":
         sampler=train_sampler
     )
 
+    # 初始化优化器和梯度缩放器
     scaler = torch.cuda.amp.GradScaler(enabled=(args.dtype in ['float16', 'bfloat16']))
-    optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate)
     optimizer = optim.AdamW(
         model.parameters(),                 # 待优化参数 (必选)
         lr=args.learning_rate,              # 学习率 η (默认1e-3)
@@ -357,13 +377,18 @@ if __name__ == "__main__":
         amsgrad=args.amsgrad                # 是否启用AMSGrad变体
     )
 
+    # 配置分布式训练
     if ddp:
         model._ddp_params_and_buffers_to_ignore = {"pos_cis"}
         model = DistributedDataParallel(model, device_ids=[ddp_local_rank])
 
+    # 计算每个epoch的迭代次数
     iter_per_epoch = len(train_loader)
+
+    # 开始训练循环
     for epoch in range(args.epochs):
         train_epoch(epoch, wandb)
 
+    # 销毁分布式线程组
     if ddp:
         dist.destroy_process_group()

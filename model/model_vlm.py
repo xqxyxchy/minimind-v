@@ -13,7 +13,6 @@ from torch_npu.npu import amp # 导入AMP模块
 from torch_npu.contrib import transfer_to_npu # 使能自动迁移
 warnings.filterwarnings('ignore')
 
-
 class VLMConfig(MiniMindConfig):
     model_type = "minimind-v"
 
@@ -39,7 +38,6 @@ class VisionProj(nn.Module):
     def forward(self, image_encoders):
         vision_proj = self.vision_proj(image_encoders)
         return vision_proj
-
 
 # 继承自语言模型
 class MiniMindVLM(MiniMindForCausalLM):

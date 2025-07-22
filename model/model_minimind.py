@@ -4,7 +4,6 @@
 
 from transformers import PretrainedConfig
 
-
 class MiniMindConfig(PretrainedConfig):
     model_type = "minimind"
 
@@ -95,7 +94,6 @@ class RMSNorm(torch.nn.Module):
     def forward(self, x):
         return self.weight * self._norm(x.float()).type_as(x)
 
-
 def precompute_freqs_cis(dim: int, end: int = int(32 * 1024), theta: float = 1e6):
     freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim))
     t = torch.arange(end, device=freqs.device)
@@ -103,7 +101,6 @@ def precompute_freqs_cis(dim: int, end: int = int(32 * 1024), theta: float = 1e6
     freqs_cos = torch.cat([torch.cos(freqs), torch.cos(freqs)], dim=-1)
     freqs_sin = torch.cat([torch.sin(freqs), torch.sin(freqs)], dim=-1)
     return freqs_cos, freqs_sin
-
 
 def apply_rotary_pos_emb(q, k, cos, sin, position_ids=None, unsqueeze_dim=1):
     def rotate_half(x):
@@ -124,7 +121,6 @@ def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
         .expand(bs, slen, num_key_value_heads, n_rep, head_dim)
         .reshape(bs, slen, num_key_value_heads * n_rep, head_dim)
     )
-
 
 class Attention(nn.Module):
     def __init__(self, args: MiniMindConfig):
@@ -213,8 +209,7 @@ class Attention(nn.Module):
         output = output.transpose(1, 2).reshape(bsz, seq_len, -1)
         output = self.resid_dropout(self.o_proj(output))
         return output, past_kv
-
-
+    
 class FeedForward(nn.Module):
     def __init__(self, config: MiniMindConfig):
         super().__init__()
@@ -229,8 +224,7 @@ class FeedForward(nn.Module):
 
     def forward(self, x):
         return self.dropout(self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x)))
-
-
+    
 class MoEGate(nn.Module):
     def __init__(self, config: MiniMindConfig):
         super().__init__()
@@ -286,8 +280,7 @@ class MoEGate(nn.Module):
         else:
             aux_loss = 0
         return topk_idx, topk_weight, aux_loss
-
-
+    
 class MOEFeedForward(nn.Module):
     def __init__(self, config: MiniMindConfig):
         super().__init__()
@@ -348,8 +341,7 @@ class MOEFeedForward(nn.Module):
             expert_cache.scatter_add_(0, exp_token_idx.view(-1, 1).repeat(1, x.shape[-1]), expert_out)
 
         return expert_cache
-
-
+    
 class MiniMindBlock(nn.Module):
     def __init__(self, layer_id: int, config: MiniMindConfig):
         super().__init__()
@@ -372,8 +364,7 @@ class MiniMindBlock(nn.Module):
         hidden_states += residual
         hidden_states = hidden_states + self.mlp(self.post_attention_layernorm(hidden_states))
         return hidden_states, present_key_value
-
-
+    
 class MiniMindModel(nn.Module):
     def __init__(self, config: MiniMindConfig):
         super().__init__()
@@ -426,8 +417,7 @@ class MiniMindModel(nn.Module):
         )
 
         return hidden_states, presents, aux_loss
-
-
+    
 class MiniMindForCausalLM(PreTrainedModel, GenerationMixin):
     config_class = MiniMindConfig
 
