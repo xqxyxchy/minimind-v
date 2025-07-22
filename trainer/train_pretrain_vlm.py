@@ -24,12 +24,14 @@ from dataset.lm_dataset import VLMDataset
 import torch_npu
 from torch_npu.npu import amp # 导入AMP模块
 from torch_npu.contrib import transfer_to_npu # 使能自动迁移
+from utils.logger_util import get_logger
 
 # 日志打印函数
 # 在分布式训练时只在主进程(rank=0)上打印日志
 def Logger(content):
     if not ddp or dist.get_rank() == 0:
-        print(content)
+        log = get_logger(__name__, log_dir="../logs")
+        log.info(content)
 
 # 余弦学习率调度器
 # 在训练过程中逐渐降低学习率，最终降到初始值的1/10
