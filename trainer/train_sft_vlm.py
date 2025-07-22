@@ -190,6 +190,44 @@ def init_distributed_mode():
     )
     torch.cuda.set_device(DEVICE)
 
+def init_log():
+    global log
+    log = get_logger(__name__, level=args.log_level, log_dir=args.log_dir)
+
+    Logger(
+        '模型超参 - 训练轮数:{} 批次大小:{} 学习率:{} 动量系数(β₁, β₂):({},{}) 数值稳定项ε:{} 解耦权重衰减系数λ:{} 是否启用AMSGrad变体:{} 训练精度:{}'.format(
+            args.epochs,
+            args.batch_size,
+            args.learning_rate,
+            args.beta1,
+            args.beta2,
+            args.eps,
+            args.weight_decay,
+            args.amsgrad,
+            args.dtype
+        ),
+        level=logging.INFO
+    )
+
+    Logger(
+        '模型参数 - 隐藏层维度:{} Transformer层数:{} 最大序列长度:{} 是否使用MoE:{} 是否只训练视觉层:{}'.format(
+            args.hidden_size,
+            args.num_hidden_layers,
+            args.max_seq_len,
+            args.use_moe,
+            args.only_vision_proj
+        ),
+        level=logging.INFO
+    )
+
+    Logger(
+        '优化器参数 - 梯度累积步数:{} 是否使用动态伸缩梯度裁剪值阈值:{} 梯度裁剪阈值:{}'.format(
+            args.accumulation_steps,
+            args.grad_dynamic,
+            args.grad_clip
+        ),
+        level=logging.INFO
+    )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MiniMind-V Pretrain")
@@ -259,44 +297,6 @@ if __name__ == "__main__":
     rank = int(os.environ.get("RANK", -1))
     ddp = rank != -1  # is this a ddp run?
     ddp_local_rank, DEVICE = 0, "cuda:0"
-
-    global log
-    log = get_logger(__name__, level=args.log_level, log_dir=args.log_dir)
-
-    Logger(
-        '模型超参 - 训练轮数:{} 批次大小:{} 学习率:{} 动量系数(β₁, β₂):({},{}) 数值稳定项ε:{} 解耦权重衰减系数λ:{} 是否启用AMSGrad变体:{} 训练精度:{}'.format(
-            args.epochs,
-            args.batch_size,
-            args.learning_rate,
-            args.beta1,
-            args.beta2,
-            args.eps,
-            args.weight_decay,
-            args.amsgrad,
-            args.dtype
-        ),
-        level=logging.INFO
-    )
-
-    Logger(
-        '模型参数 - 隐藏层维度:{} Transformer层数:{} 最大序列长度:{} 是否使用MoE:{} 是否只训练视觉层:{}'.format(
-            args.hidden_size,
-            args.num_hidden_layers,
-            args.max_seq_len,
-            args.use_moe,
-            args.only_vision_proj
-        ),
-        level=logging.INFO
-    )
-
-    Logger(
-        '优化器参数 - 梯度累积步数:{} 是否使用动态伸缩梯度裁剪值阈值:{} 梯度裁剪阈值:{}'.format(
-            args.accumulation_steps,
-            args.grad_dynamic,
-            args.grad_clip
-        ),
-        level=logging.INFO
-    )
     
     base_seed = 1337
     torch.manual_seed(base_seed)
@@ -308,6 +308,8 @@ if __name__ == "__main__":
         torch.manual_seed(base_seed + rank)
         # 同时设置 CUDA 的随机种子
         torch.cuda.manual_seed(base_seed + rank)
+
+    init_log()
 
     if args.use_wandb and (not ddp or rank == 0):
         import wandb
