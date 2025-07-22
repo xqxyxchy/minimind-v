@@ -139,7 +139,7 @@ def init_model(model_config: VLMConfig):
     tokenizer = AutoTokenizer.from_pretrained('../model', use_fast=True)
     moe_path = '_moe' if model_config.use_moe else ''
     # 加载纯语言模型权重
-    ckp = f'{args.input_dir}/llm_{model_config.hidden_size}{moe_path}.pth'
+    ckp = f'{args.input_dir}/{args.llm_prefix}_{model_config.hidden_size}{moe_path}.pth'
     model = MiniMindVLM(model_config, vision_model_path="../model/vision_model/clip-vit-base-patch16")
     state_dict = torch.load(ckp, map_location=args.device)
     model.load_state_dict(state_dict, strict=False)
@@ -183,6 +183,7 @@ if __name__ == "__main__":
     
     # 基础训练参数
     parser.add_argument("--input_dir", type=str, help="输入目录")
+    parser.add_argument("--llm_prefix", type=str, default="full_sft", help="语言模型前缀")
     parser.add_argument("--out_dir", type=str, default="../out", help="输出目录")
     parser.add_argument("--epochs", type=int, default=4, help="训练轮数")
     parser.add_argument("--batch_size", type=int, default=16, help="批次大小")
