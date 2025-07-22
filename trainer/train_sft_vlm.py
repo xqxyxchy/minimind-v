@@ -235,6 +235,31 @@ if __name__ == "__main__":
     parser.add_argument("--images_path", type=str, default="../dataset/sft_images", help="训练数据路径")
     args = parser.parse_args()
 
+    model_config = VLMConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers,
+                             max_seq_len=args.max_seq_len)
+    max_seq_len = model_config.max_seq_len
+    args.save_dir = os.path.join(args.out_dir)
+    os.makedirs(args.save_dir, exist_ok=True)
+    os.makedirs(args.out_dir, exist_ok=True)
+
+    if args.input_dir is None:
+        args.input_dir = args.save_dir
+    elif not args.input_dir.strip():
+        args.input_dir = args.save_dir
+
+    tokens_per_iter = args.batch_size * max_seq_len
+    torch.manual_seed(1337)
+    device_type = "cuda" if "cuda" in args.device else "cpu"
+
+    ts=datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d_%H:%M:%S")
+    args.wandb_run_name = f"{ts}-Epoch-{args.epochs}-BatchSize-{args.batch_size}-LearningRate-{args.learning_rate}"
+
+    # 设置自动混合精度训练上下文
+    ctx = nullcontext() if device_type == "cpu" else torch.cuda.amp.autocast()
+    rank = int(os.environ.get("RANK", -1))
+    ddp = rank != -1  # is this a ddp run?
+    ddp_local_rank, DEVICE = 0, "cuda:0"
+
     global log
     log = get_logger(__name__, level=args.log_level, log_dir=args.log_dir)
 
@@ -272,31 +297,7 @@ if __name__ == "__main__":
         ),
         level=logging.INFO
     )
-
-    model_config = VLMConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers,
-                             max_seq_len=args.max_seq_len)
-    max_seq_len = model_config.max_seq_len
-    args.save_dir = os.path.join(args.out_dir)
-    os.makedirs(args.save_dir, exist_ok=True)
-    os.makedirs(args.out_dir, exist_ok=True)
-
-    if args.input_dir is None:
-        args.input_dir = args.save_dir
-    elif not args.input_dir.strip():
-        args.input_dir = args.save_dir
-
-    tokens_per_iter = args.batch_size * max_seq_len
-    torch.manual_seed(1337)
-    device_type = "cuda" if "cuda" in args.device else "cpu"
-
-    ts=datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d_%H:%M:%S")
-    args.wandb_run_name = f"{ts}-Epoch-{args.epochs}-BatchSize-{args.batch_size}-LearningRate-{args.learning_rate}"
-
-    # 设置自动混合精度训练上下文
-    ctx = nullcontext() if device_type == "cpu" else torch.cuda.amp.autocast()
-    rank = int(os.environ.get("RANK", -1))
-    ddp = rank != -1  # is this a ddp run?
-    ddp_local_rank, DEVICE = 0, "cuda:0"
+    
     base_seed = 1337
     torch.manual_seed(base_seed)
     torch.cuda.manual_seed(base_seed)
