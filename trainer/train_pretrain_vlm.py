@@ -24,8 +24,10 @@ from dataset.lm_dataset import VLMDataset
 import logging
 from utils.logger_util import get_logger
 
+rank = int(os.environ.get("RANK", -1))
 if torch.cuda.is_available():
-    print("info: cuda device is available")
+    if rank == 0:
+        print("info: cuda device is available")
 else:
     print("warning: cuda device is not available")
     try:
@@ -33,11 +35,14 @@ else:
         from torch_npu.npu import amp # 导入AMP模块
         from torch_npu.contrib import transfer_to_npu # 使能自动迁移
         if torch_npu.npu.is_available():
-            print("info: npu device is available")
+            if rank == 0:
+                print("info: npu device is available")
         else:
-            print("warning: npu device is not available")
+            if rank == 0:
+                print("warning: npu device is not available")
     except ImportError:
-        print("warning: torch_npu is not installed")
+        if rank == 0:
+            print("warning: torch_npu is not installed")
 
 warnings.filterwarnings('ignore')
 
