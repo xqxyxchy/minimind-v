@@ -187,7 +187,8 @@ class Attention(nn.Module):
             repeat_kv(xv, self.n_rep).transpose(1, 2)
         )
 
-        if False and self.flash and seq_len != 1:
+        # if False and self.flash and seq_len != 1:
+        if self.flash and seq_len != 1:
             dropout_p = self.dropout if self.training else 0.0
             attn_mask = None
             if attention_mask is not None:
