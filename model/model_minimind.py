@@ -78,9 +78,21 @@ from typing import Optional, Tuple, List, Union
 import torch.nn.functional as F
 from transformers import PreTrainedModel, GenerationMixin, PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
-import torch_npu
-from torch_npu.npu import amp # 导入AMP模块
-from torch_npu.contrib import transfer_to_npu # 使能自动迁移
+
+if torch.cuda.is_available():
+    pass
+else:
+    print("warning: cuda device is not available")
+    try:
+        import torch_npu
+        from torch_npu.npu import amp # 导入AMP模块
+        from torch_npu.contrib import transfer_to_npu # 使能自动迁移
+        if torch_npu.npu.is_available():
+            pass
+        else:
+            print("warning: npu device is not available")
+    except ImportError:
+        print("warning: torch_npu is not installed")
 
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim: int, eps: float = 1e-5):

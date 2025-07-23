@@ -21,11 +21,25 @@ from torch.utils.data import DataLoader, DistributedSampler
 from transformers import AutoTokenizer, AutoModel
 from model.model_vlm import MiniMindVLM, VLMConfig
 from dataset.lm_dataset import VLMDataset
-import torch_npu
-from torch_npu.npu import amp # 导入AMP模块
-from torch_npu.contrib import transfer_to_npu # 使能自动迁移
 import logging
 from utils.logger_util import get_logger
+
+if torch.cuda.is_available():
+    pass
+else:
+    print("warning: cuda device is not available")
+    try:
+        import torch_npu
+        from torch_npu.npu import amp # 导入AMP模块
+        from torch_npu.contrib import transfer_to_npu # 使能自动迁移
+        if torch_npu.npu.is_available():
+            pass
+        else:
+            print("warning: npu device is not available")
+    except ImportError:
+        print("warning: torch_npu is not installed")
+
+warnings.filterwarnings('ignore')
 
 # 日志打印函数
 # 在分布式训练时只在主进程(rank=0)上打印日志
