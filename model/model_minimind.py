@@ -70,6 +70,7 @@ class MiniMindConfig(PretrainedConfig):
 #                                             MiniMind Model
 # 📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘
 
+import os
 import math
 import torch
 from torch import nn
@@ -79,15 +80,26 @@ import torch.nn.functional as F
 from transformers import PreTrainedModel, GenerationMixin, PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
+rank = int(os.environ.get("RANK", -1))
 if torch.cuda.is_available():
-    pass
+    if rank == 0:
+        print("info: cuda device is available")
 else:
+    if rank == 0:
+        print("warning: cuda device is not available")
     try:
         import torch_npu
         from torch_npu.npu import amp # 导入AMP模块
         from torch_npu.contrib import transfer_to_npu # 使能自动迁移
+        if torch_npu.npu.is_available():
+            if rank == 0:
+                print("info: npu device is available")
+        else:
+            if rank == 0:
+                print("warning: npu device is not available")
     except ImportError:
-        pass
+        if rank == 0:
+            print("warning: torch_npu is not installed")
 
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim: int, eps: float = 1e-5):

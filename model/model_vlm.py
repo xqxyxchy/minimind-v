@@ -8,17 +8,6 @@ from typing import Optional, Tuple, List, Callable
 from torch import nn
 from transformers import CLIPProcessor, CLIPModel, GenerationConfig, LogitsProcessorList, StoppingCriteriaList
 from typing import List
-
-if torch.cuda.is_available():
-    pass
-else:
-    try:
-        import torch_npu
-        from torch_npu.npu import amp # 导入AMP模块
-        from torch_npu.contrib import transfer_to_npu # 使能自动迁移
-    except ImportError:
-        pass
-
 warnings.filterwarnings('ignore')
 
 class VLMConfig(MiniMindConfig):
