@@ -101,6 +101,9 @@ else:
         if rank == -1 or rank == 0:
             print("warning: torch_npu is not installed")
 
+import warnings
+warnings.filterwarnings("ignore")
+
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim: int, eps: float = 1e-5):
         super().__init__()
