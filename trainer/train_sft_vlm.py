@@ -20,6 +20,7 @@ from model.model_vlm import MiniMindVLM, VLMConfig
 from dataset.lm_dataset import VLMDataset
 import logging
 from utils.logger_util import get_logger
+from utils.datetime_util import format_timedelta
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -308,6 +309,8 @@ if __name__ == "__main__":
     parser.add_argument("--images_path", type=str, default="../dataset/sft_images", help="训练数据路径")
     args = parser.parse_args()
 
+    start = datetime.now()
+
     # 初始化模型配置
     model_config = VLMConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers,
                              max_seq_len=args.max_seq_len)
@@ -416,6 +419,12 @@ if __name__ == "__main__":
     for epoch in range(args.epochs):
         train_epoch(epoch, wandb)
 
+    end = datetime.now()
+    Logger(
+        f'训练时长 - {format_timedelta(start, end)}',
+        level=logging.INFO
+    )
+    
     # 销毁分布式线程组
     if ddp:
         dist.destroy_process_group()
