@@ -3,11 +3,13 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import time
 import math
-import warnings
 import os
 import sys
 import torch
 import torch.distributed as dist
+
+import warnings
+warnings.filterwarnings("ignore")
 
 __package__ = "trainer"
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -21,7 +23,6 @@ from model.model_vlm import MiniMindVLM, VLMConfig
 from dataset.lm_dataset import VLMDataset
 import logging
 from utils.logger_util import get_logger
-warnings.filterwarnings('ignore')
 
 # 日志打印函数
 # 在分布式训练时只在主进程(rank=0)上打印日志
