@@ -70,6 +70,7 @@ class MiniMindConfig(PretrainedConfig):
 #                                             MiniMind Model
 # 📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘📘
 
+import os
 import math
 import torch
 from torch import nn
