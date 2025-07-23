@@ -94,7 +94,7 @@ def train_epoch(epoch, wandb):
 
         scaler.scale(loss).backward()
 
-        if (step + 1) % args.accumulation_steps == 0:
+        if (step + 1) % args.accumulation_steps == 0 or (step + 1) == iter_per_epoch:
             # 检查并清理非有限梯度
             error_if_nonfinite = check_and_clean_gradients()
             if error_if_nonfinite:
@@ -103,7 +103,7 @@ def train_epoch(epoch, wandb):
                         args.use_moe,
                         epoch + 1,
                         args.epochs,
-                        step,
+                        step + 1,
                         iter_per_epoch),
                     level=logging.WARNING
                 )
@@ -143,14 +143,14 @@ def train_epoch(epoch, wandb):
 
             optimizer.zero_grad(set_to_none=True)
 
-        if step % args.log_interval == 0:
+        if step % args.log_interval == 0 or (step + 1) == iter_per_epoch:
             spend_time = time.time() - start_time
             Logger(
                 'Pre-Train MOE:{} Epoch:[{}/{}]({}/{}) loss:{:.3f} lr:{:.7f} epoch_Time:{}min grad_norm:{:.3f}'.format(
                     args.use_moe,
                     epoch + 1,
                     args.epochs,
-                    step,
+                    step + 1,
                     iter_per_epoch,
                     loss.item(),
                     optimizer.param_groups[-1]['lr'],
@@ -165,7 +165,7 @@ def train_epoch(epoch, wandb):
                            "grad_norm": current_max_norm
                            })
 
-        if (step + 1) % args.save_interval == 0 and (not ddp or dist.get_rank() == 0):
+        if ((step + 1) % args.save_interval == 0 or (step + 1) == iter_per_epoch) and (not ddp or dist.get_rank() == 0):
             model.eval()
             moe_path = '_moe' if model_config.use_moe else ''
             ckp = f'{args.save_dir}/pretrain_vlm_{model_config.hidden_size}{moe_path}.pth'
@@ -425,7 +425,7 @@ if __name__ == "__main__":
         f'训练时长 - {format_timedelta(start, end)}',
         level=logging.INFO
     )
-    
+
     # 销毁分布式线程组
     if ddp:
         dist.destroy_process_group()
