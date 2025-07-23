@@ -25,7 +25,7 @@ import logging
 from utils.logger_util import get_logger
 
 if torch.cuda.is_available():
-    pass
+    print("info: cuda device is available")
 else:
     print("warning: cuda device is not available")
     try:
@@ -33,7 +33,7 @@ else:
         from torch_npu.npu import amp # 导入AMP模块
         from torch_npu.contrib import transfer_to_npu # 使能自动迁移
         if torch_npu.npu.is_available():
-            pass
+            print("info: npu device is available")
         else:
             print("warning: npu device is not available")
     except ImportError:
