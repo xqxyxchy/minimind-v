@@ -56,6 +56,18 @@ def get_lr(current_step, total_steps, lr):
     """
     return lr / 10 + 0.5 * lr * (1 + math.cos(math.pi * current_step / total_steps))
 
+def check_and_clean_gradients():
+    non_finite_exist = False
+    for param in model.parameters():
+        if param.grad is not None:
+            # 检查梯度中是否有NaN或Inf
+            grad = param.grad.data
+            if torch.isnan(grad).any() or torch.isinf(grad).any():
+                non_finite_exist = True
+                # 将非有限梯度置零
+                param.grad.data = torch.where(torch.isfinite(grad), grad, torch.zeros_like(grad))
+    return non_finite_exist
+
 def train_epoch(epoch, wandb):
     # 使用交叉熵损失函数，reduction='none'以便后续通过mask处理填充token
     loss_fct = nn.CrossEntropyLoss(reduction='none')
@@ -84,13 +96,26 @@ def train_epoch(epoch, wandb):
         scaler.scale(loss).backward()
 
         if (step + 1) % args.accumulation_steps == 0:
+            # 检查并清理非有限梯度
+            error_if_nonfinite = check_and_clean_gradients()
+            if error_if_nonfinite:
+                Logger(
+                    'Full-SFT MOE:{} Epoch:[{}/{}]({}/{}) - 发现非有限梯度，已清理'.format(
+                        args.use_moe,
+                        epoch + 1,
+                        args.epochs,
+                        step,
+                        iter_per_epoch),
+                    level=logging.WARNING
+                )
+
             scaler.unscale_(optimizer)
             if args.grad_dynamic:
                 # 监控梯度范数
                 current_norm = torch.nn.utils.clip_grad_norm_(
                     model.parameters(), 
                     max_norm=10,  # 临时设大值以测量真实范数
-                    error_if_nonfinite=True
+                    error_if_nonfinite=error_if_nonfinite
                 )
                 
                 # 动态调整逻辑：若梯度持续过大则收紧
@@ -108,7 +133,11 @@ def train_epoch(epoch, wandb):
                     max_norm=new_max_norm
                 )
             else:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(),
+                    args.grad_clip,
+                    error_if_nonfinite=error_if_nonfinite
+                )
 
             scaler.step(optimizer)
             scaler.update()
