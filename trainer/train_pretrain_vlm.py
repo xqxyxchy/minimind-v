@@ -60,7 +60,7 @@ def train_epoch(epoch, wandb):
             if error_if_nonfinite:
                 Logger(
                     log,
-                    'Pre-Train MOE:{} Epoch:[{}/{}]({}/{}) - 发现({}/{})个非有限梯度，已清理'.format(
+                    'MOE:{} Epoch:[{}/{}]({}/{}) - 发现({}/{})个非有限梯度，已清理'.format(
                         args.use_moe,
                         epoch + 1,
                         args.epochs,
@@ -110,7 +110,7 @@ def train_epoch(epoch, wandb):
             spend_time = time.time() - start_time
             Logger(
                 log,
-                'Pre-Train MOE:{} Epoch:[{}/{}]({}/{}) loss:{:.3f} lr:{:.7f} epoch_Time:{}min grad_norm:{:.3f}'.format(
+                'MOE:{} Epoch:[{}/{}]({}/{}) loss:{:.3f} lr:{:.7f} epoch_Time:{}min grad_norm:{:.3f}'.format(
                     args.use_moe,
                     epoch + 1,
                     args.epochs,
@@ -191,7 +191,7 @@ def init_distributed_mode():
 # 初始化日志
 def init_log():
     global log
-    log = get_logger(__name__, level=args.log_level, log_dir=args.log_dir, log_file=args.log_file)
+    log = get_logger("Pre-Train", level=args.log_level, log_dir=args.log_dir, log_file=args.log_file)
 
     Logger(
         log,
@@ -232,7 +232,7 @@ def init_log():
     )
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="MiniMind-V Pretrain")
+    parser = argparse.ArgumentParser(description="MiniMind-V Pre train")
     
     # 基础训练参数
     parser.add_argument("--input_dir", type=str, help="输入目录")
