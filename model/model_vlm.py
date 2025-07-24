@@ -6,7 +6,7 @@ from transformers.generation.utils import GenerateOutput
 from .model_minimind import *
 from typing import Optional, Tuple, List, Callable
 from torch import nn
-from transformers import CLIPProcessor, CLIPModel, GenerationConfig, LogitsProcessorList, StoppingCriteriaList
+from transformers import CLIPProcessor, CLIPModel, SiglipProcessor, SiglipModel, GenerationConfig, LogitsProcessorList, StoppingCriteriaList
 from typing import List
 warnings.filterwarnings('ignore')
 
@@ -40,21 +40,27 @@ class VisionProj(nn.Module):
 class MiniMindVLM(MiniMindForCausalLM):
     config_class = VLMConfig
 
-    def __init__(self, params: VLMConfig = None, vision_model_path="./model/vision_model/clip-vit-base-patch16"):
+    def __init__(self, params: VLMConfig = None, vision_encoder_type="clip", vision_model_path="./model/vision_model/clip-vit-base-patch16"):
         super().__init__(params)
         if not params: params = VLMConfig()
         self.params = params
-        self.vision_encoder, self.processor = self.__class__.get_vision_model(vision_model_path)
+        self.vision_encoder, self.processor = self.__class__.get_vision_model(vision_encoder_type, vision_model_path)
         self.vision_proj = VisionProj(hidden_size=params.hidden_size)
 
     @staticmethod
-    def get_vision_model(model_path: str):
+    def get_vision_model(encoder_type: str, model_path: str):
         from transformers import logging as hf_logging
         hf_logging.set_verbosity_error()
         if not os.path.exists(model_path):
             return None, None
-        model = CLIPModel.from_pretrained(model_path)
-        processor = CLIPProcessor.from_pretrained(model_path)
+        
+        if encoder_type == "clip":
+            model = CLIPModel.from_pretrained(model_path)
+            processor = CLIPProcessor.from_pretrained(model_path)
+        else:
+            model = SiglipModel.from_pretrained(model_path)
+            processor = SiglipProcessor.from_pretrained(model_path)
+
         # 冻结 vision_encoder 的所有参数
         for param in model.parameters():
             param.requires_grad = False

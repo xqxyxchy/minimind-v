@@ -153,7 +153,11 @@ def init_model(model_config: VLMConfig):
     moe_path = '_moe' if model_config.use_moe else ''
     # 加载纯语言模型权重
     ckp = f'{args.input_dir}/{args.llm_prefix}_{model_config.hidden_size}{moe_path}.pth'
-    model = MiniMindVLM(model_config, vision_model_path="../model/vision_model/clip-vit-base-patch16")
+    model = MiniMindVLM(
+        model_config,
+        vision_encoder_type=args.vision_encoder_type,
+        vision_model_path=args.vision_model_path
+        )
     state_dict = torch.load(ckp, map_location=args.device)
     model.load_state_dict(state_dict, strict=False)
 
@@ -254,15 +258,31 @@ if __name__ == "__main__":
     parser.add_argument('--max_seq_len', default=640, type=int, help="最大序列长度")
     parser.add_argument('--use_moe', default=False, type=bool, help="是否使用MoE")
     parser.add_argument('--only_vision_proj', default=True, type=bool, help="是否只训练视觉层")
+    parser.add_argument("--vision_encoder_type", type=str, default="clip", help="视觉编码类型")
+    parser.add_argument("--vision_model_path", type=str, default="../model/vision_model/clip-vit-base-patch16", help="视觉编码模型路径")
     parser.add_argument("--data_path", type=str, default="../dataset/pretrain_data.jsonl", help="训练数据路径")
     parser.add_argument("--images_path", type=str, default="../dataset/pretrain_images", help="训练数据路径")
     args = parser.parse_args()
 
     start = datetime.now()
 
+    model_config = None
     # 初始化模型配置
-    model_config = VLMConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers,
-                             max_seq_len=args.max_seq_len)
+    if args.vision_encoder_type == "clip":
+        model_config = VLMConfig(
+                            hidden_size=args.hidden_size,
+                            num_hidden_layers=args.num_hidden_layers,
+                            max_seq_len=args.max_seq_len
+                        )
+    else:
+        model_config = VLMConfig(
+                            hidden_size=args.hidden_size,
+                            num_hidden_layers=args.num_hidden_layers,
+                            max_seq_len=args.max_seq_len,
+                            image_special_token='<'*98+'>'*98,
+                            image_ids=[30]*98+[32]*98
+                        )
+
     max_seq_len = model_config.max_seq_len
 
     # 创建模型输出目录

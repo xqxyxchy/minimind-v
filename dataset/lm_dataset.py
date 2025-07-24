@@ -7,7 +7,6 @@ import os
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-
 class VLMDataset(Dataset):
     def __init__(self, jsonl_path, images_path, tokenizer, preprocess=None, max_length=512,
                  image_special_token='@' * 196):
@@ -84,3 +83,4 @@ class VLMDataset(Dataset):
         image_tensors = torch.stack(image_tensors, dim=0)
 
         return X, Y, loss_mask, image_tensors
+    

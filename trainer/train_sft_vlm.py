@@ -134,11 +134,13 @@ def train_epoch(epoch, wandb):
         if ((step + 1) % args.save_interval == 0 or (step + 1) == iter_per_epoch) and (not ddp or dist.get_rank() == 0):
             model.eval()
             moe_path = '_moe' if model_config.use_moe else ''
-            ckp = f'{args.save_dir}/sft_vlm_{model_config.hidden_size}{moe_path}.pth'
+            multi_path = 'multi' if args.multi else ''
+            ckp = f'{args.save_dir}/sft_vlm_{multi_path}_{model_config.hidden_size}{moe_path}.pth'
             if isinstance(model, torch.nn.parallel.DistributedDataParallel):
                 state_dict = model.module.state_dict()
             else:
                 state_dict = model.state_dict()
+
             clean_state_dict = {
                 key: value for key, value in state_dict.items() if not key.startswith('vision_encoder.')
             }
@@ -151,9 +153,14 @@ def init_model(model_config: VLMConfig):
     # 加载预训练的分词器
     tokenizer = AutoTokenizer.from_pretrained('../model')
     moe_path = '_moe' if model_config.use_moe else ''
-    ckp = f'{args.input_dir}/pretrain_vlm_{model_config.hidden_size}{moe_path}.pth'
+    model_prefix = 'sft' if args.multi else 'pretrain'
+    ckp = f'{args.input_dir}/{model_prefix}_vlm_{model_config.hidden_size}{moe_path}.pth'
     # 加载纯语言模型权重
-    model = MiniMindVLM(model_config, vision_model_path="../model/vision_model/clip-vit-base-patch16")
+    model = MiniMindVLM(
+        model_config,
+        vision_encoder_type=args.vision_encoder_type,
+        vision_model_path=args.vision_model_path
+        )
     state_dict = torch.load(ckp, map_location=args.device)
     model.load_state_dict(state_dict, strict=False)
 
@@ -253,15 +260,32 @@ if __name__ == "__main__":
     parser.add_argument('--max_seq_len', default=1536, type=int, help="最大序列长度")
     parser.add_argument('--use_moe', default=False, type=bool, help="是否使用MoE")
     parser.add_argument('--only_vision_proj', default=True, type=bool, help="是否只训练视觉层")
+    parser.add_argument("--vision_encoder_type", type=str, default="clip", help="视觉编码类型")
+    parser.add_argument("--vision_model_path", type=str, default="../model/vision_model/clip-vit-base-patch16", help="视觉编码模型路径")
+    parser.add_argument('--multi', type=bool, default=False, help='多图像训练')
     parser.add_argument("--data_path", type=str, default="../dataset/sft_data.jsonl", help="训练数据路径")
     parser.add_argument("--images_path", type=str, default="../dataset/sft_images", help="训练数据路径")
     args = parser.parse_args()
 
     start = datetime.now()
 
+    model_config = None
     # 初始化模型配置
-    model_config = VLMConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers,
-                             max_seq_len=args.max_seq_len)
+    if args.vision_encoder_type == "clip":
+        model_config = VLMConfig(
+                            hidden_size=args.hidden_size,
+                            num_hidden_layers=args.num_hidden_layers,
+                            max_seq_len=args.max_seq_len
+                        )
+    else:
+        model_config = VLMConfig(
+                            hidden_size=args.hidden_size,
+                            num_hidden_layers=args.num_hidden_layers,
+                            max_seq_len=args.max_seq_len,
+                            image_special_token='<'*98+'>'*98,
+                            image_ids=[30]*98+[32]*98
+                        )
+        
     max_seq_len = model_config.max_seq_len
 
     # 创建模型输出目录
@@ -329,10 +353,15 @@ if __name__ == "__main__":
     # 初始化模型和分词器
     model, tokenizer, preprocess = init_model(model_config)
 
-    # 准备训练数据
-    train_ds = VLMDataset(args.data_path, args.images_path, tokenizer, preprocess=preprocess,
-                          image_special_token=model_config.image_special_token,
-                          max_length=max_seq_len)
+    train_ds = VLMDataset(
+            args.data_path,
+            args.images_path,
+            tokenizer,
+            preprocess=preprocess,
+            image_special_token=model_config.image_special_token,
+            max_length=max_seq_len
+        )
+
     train_sampler = DistributedSampler(train_ds) if ddp else None
     train_loader = DataLoader(
         train_ds,
