@@ -219,7 +219,7 @@ def init_distributed_mode():
 # 初始化日志
 def init_log():
     global log
-    log = get_logger(__name__, level=args.log_level, log_dir=args.log_dir)
+    log = get_logger(__name__, level=args.log_level, log_dir=args.log_dir, log_file=args.log_file)
 
     Logger(
         '模型超参 - 训练轮数:{} 批次大小:{} 学习率:{} 动量系数(β₁, β₂):({},{}) 数值稳定项ε:{} 解耦权重衰减系数λ:{} 是否启用AMSGrad变体:{} 训练精度:{}'.format(
@@ -280,6 +280,7 @@ if __name__ == "__main__":
     parser.add_argument("--log_interval", type=int, default=10, help="日志打印间隔")
     parser.add_argument("--save_interval", type=int, default=10, help="模型保存间隔")
     parser.add_argument("--log_dir", type=str, default="../logs", help="日志文件目录")
+    parser.add_argument("--log_file", type=str, help="日志文件")
     parser.add_argument("--log_level", type=int, default=logging.DEBUG, help="日志文件目录")
 
     # 分布式训练参数
