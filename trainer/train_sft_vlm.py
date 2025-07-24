@@ -2,7 +2,6 @@ import argparse
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import time
-import math
 import os
 import sys
 import torch
@@ -19,42 +18,14 @@ from transformers import AutoTokenizer, AutoModel
 from model.model_vlm import MiniMindVLM, VLMConfig
 from dataset.lm_dataset import VLMDataset
 import logging
+from utils.lr_util import get_lr
 from utils.logger_util import get_logger
+from utils.logging_util import Logger
 from utils.datetime_util import format_timedelta
 from utils.gradient_util import check_and_clean_gradients
 
 import warnings
 warnings.filterwarnings("ignore")
-
-# 日志打印函数
-# 在分布式训练时只在主进程(rank=0)上打印日志
-def Logger(content, level: int=logging.DEBUG):
-    if not ddp or dist.get_rank() == 0:
-        if logging.DEBUG == level:
-            log.debug(content)
-        elif logging.INFO == level:
-            log.info(content)
-        elif logging.WARNING == level:
-            log.warning(content)
-        elif logging.ERROR == level:
-            log.error(content)
-        elif logging.CRITICAL == level:
-            log.critical(content)
-        else:
-            log.debug(content)
-
-# 余弦学习率调度器
-# 在训练过程中逐渐降低学习率，最终降到初始值的1/10
-def get_lr(current_step, total_steps, lr):
-    """使用余弦退火策略计算学习率
-    Args:
-        current_step: 当前训练步数
-        total_steps: 总训练步数
-        lr: 基础学习率
-    Returns:
-        当前步数对应的学习率
-    """
-    return lr / 10 + 0.5 * lr * (1 + math.cos(math.pi * current_step / total_steps))
 
 def train_epoch(epoch, wandb):
     # 使用交叉熵损失函数，reduction='none'以便后续通过mask处理填充token
@@ -88,6 +59,7 @@ def train_epoch(epoch, wandb):
             error_if_nonfinite, grad_cnt, non_finite_cnt = check_and_clean_gradients(model.parameters())
             if error_if_nonfinite:
                 Logger(
+                    log,
                     'Full-SFT MOE:{} Epoch:[{}/{}]({}/{}) - 发现({}/{})个非有限梯度，已清理'.format(
                         args.use_moe,
                         epoch + 1,
@@ -137,6 +109,7 @@ def train_epoch(epoch, wandb):
         if step % args.log_interval == 0 or (step + 1) == iter_per_epoch:
             spend_time = time.time() - start_time
             Logger(
+                log,
                 'Full-SFT MOE:{} Epoch:[{}/{}]({}/{}) loss:{:.3f} lr:{:.7f} epoch_Time:{}min grad_norm:{:.3f}'.format(
                     args.use_moe,
                     epoch + 1,
@@ -189,7 +162,7 @@ def init_model(model_config: VLMConfig):
             if any(proj in name for proj in ['q_proj', 'k_proj', 'v_proj', 'o_proj']):
                 param.requires_grad = True
 
-    Logger(f'VLM可训练参数量：{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6:.3f} 百万', level=logging.INFO)
+    Logger(log, f'VLM可训练参数量：{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6:.3f} 百万', level=logging.INFO)
 
     _, preprocess = model.vision_encoder, model.processor
     return model.to(args.device), tokenizer, preprocess
@@ -222,6 +195,7 @@ def init_log():
     log = get_logger(__name__, level=args.log_level, log_dir=args.log_dir, log_file=args.log_file)
 
     Logger(
+        log,
         '模型超参 - 训练轮数:{} 批次大小:{} 学习率:{} 动量系数(β₁, β₂):({},{}) 数值稳定项ε:{} 解耦权重衰减系数λ:{} 是否启用AMSGrad变体:{} 训练精度:{}'.format(
             args.epochs,
             args.batch_size,
@@ -237,6 +211,7 @@ def init_log():
     )
 
     Logger(
+        log,
         '模型参数 - 隐藏层维度:{} Transformer层数:{} 最大序列长度:{} 是否使用MoE:{} 是否只训练视觉层:{}'.format(
             args.hidden_size,
             args.num_hidden_layers,
@@ -248,6 +223,7 @@ def init_log():
     )
 
     Logger(
+        log,
         '优化器参数 - 梯度累积步数:{} 是否使用动态伸缩梯度裁剪值阈值:{} 梯度裁剪阈值:{}'.format(
             args.accumulation_steps,
             args.grad_dynamic,
@@ -413,6 +389,7 @@ if __name__ == "__main__":
 
     end = datetime.now()
     Logger(
+        log,
         f'训练时长 - {format_timedelta(start, end)}',
         level=logging.INFO
     )
