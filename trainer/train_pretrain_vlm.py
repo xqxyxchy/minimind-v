@@ -21,6 +21,7 @@ from dataset.lm_dataset import VLMDataset
 import logging
 from utils.logger_util import get_logger
 from utils.datetime_util import format_timedelta
+from utils.gradient_util import check_and_clean_gradients
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -55,18 +56,6 @@ def get_lr(current_step, total_steps, lr):
     """
     return lr / 10 + 0.5 * lr * (1 + math.cos(math.pi * current_step / total_steps))
 
-def check_and_clean_gradients():
-    non_finite_exist = False
-    for param in model.parameters():
-        if param.grad is not None:
-            # 检查梯度中是否有NaN或Inf
-            grad = param.grad.data
-            if torch.isnan(grad).any() or torch.isinf(grad).any():
-                non_finite_exist = True
-                # 将非有限梯度置零
-                param.grad.data = torch.where(torch.isfinite(grad), grad, torch.zeros_like(grad))
-    return non_finite_exist
-
 def train_epoch(epoch, wandb):
     # 使用交叉熵损失函数，reduction='none'以便后续通过mask处理填充token
     loss_fct = nn.CrossEntropyLoss(reduction='none')
@@ -96,15 +85,17 @@ def train_epoch(epoch, wandb):
 
         if (step + 1) % args.accumulation_steps == 0 or (step + 1) == iter_per_epoch:
             # 检查并清理非有限梯度
-            error_if_nonfinite = check_and_clean_gradients()
+            error_if_nonfinite, grad_cnt, non_finite_cnt = check_and_clean_gradients(model.parameters())
             if error_if_nonfinite:
                 Logger(
-                    'Full-SFT MOE:{} Epoch:[{}/{}]({}/{}) - 发现非有限梯度，已清理'.format(
+                    'Pre-Train MOE:{} Epoch:[{}/{}]({}/{}) - 发现({}/{})个非有限梯度，已清理'.format(
                         args.use_moe,
                         epoch + 1,
                         args.epochs,
                         step + 1,
-                        iter_per_epoch),
+                        iter_per_epoch,
+                        non_finite_cnt,
+                        grad_cnt),
                     level=logging.WARNING
                 )
 
