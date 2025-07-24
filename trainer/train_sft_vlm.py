@@ -18,6 +18,8 @@ from transformers import AutoTokenizer, AutoModel
 from model.model_vlm import MiniMindVLM, VLMConfig
 from dataset.lm_dataset import VLMDataset
 import logging
+
+from utils.distributed_util import init_distributed_mode
 from utils.lr_util import get_lr
 from utils.logger_util import get_logger
 from utils.logging_util import Logger
@@ -167,28 +169,6 @@ def init_model(model_config: VLMConfig):
     _, preprocess = model.vision_encoder, model.processor
     return model.to(args.device), tokenizer, preprocess
 
-# 初始化分布式训练环境
-def init_distributed_mode():
-    if not ddp: return
-    global ddp_local_rank, DEVICE
-
-    # 全局进程编号
-    rank = int(os.environ["RANK"])
-    # 本地进程编号
-    ddp_local_rank = int(os.environ["LOCAL_RANK"])
-    # 总进程数
-    world_size = int(os.environ["WORLD_SIZE"])
-    # 设置当前进程使用的设备
-    DEVICE = f"cuda:{ddp_local_rank}"
-    # 初始化分布式进程组，使用NCCL或HCCL后端
-    dist.init_process_group(
-        backend="nccl",
-        init_method="env://",
-        rank=rank,
-        world_size=world_size
-    )
-    torch.cuda.set_device(DEVICE)
-
 # 初始化日志
 def init_log():
     global log
@@ -314,7 +294,7 @@ if __name__ == "__main__":
 
     # 初始化分布式训练环境
     if ddp:
-        init_distributed_mode()
+        ddp_local_rank, DEVICE = init_distributed_mode()
         args.device = torch.device(DEVICE)
         # 同时设置 CUDA 的随机种子
         torch.manual_seed(base_seed + rank)
